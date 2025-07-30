@@ -92,6 +92,7 @@ Bjorn includes comprehensive wireless network attack capabilities using wifite2 
   - Panda PAU09 (802.11n)
 - **Driver Support**: Most adapters work with standard Linux drivers
 - **Monitor Mode**: Adapter must support monitor mode for packet injection
+- **Automatic Detection**: Bjorn automatically detects Alfa USB wifi adapters and only activates wireless attacks when one is connected
 
 #### **Wifite2 Features**
 - **Network Discovery**: Automatic scanning for available wireless networks
@@ -101,6 +102,7 @@ Bjorn includes comprehensive wireless network attack capabilities using wifite2 
   - PMKID attacks
 - **Smart Targeting**: Prioritizes WPS-enabled networks when configured
 - **Automatic Connection**: Connects to successfully cracked networks
+- **IDLE Network Scanning**: Automatically connects to unsecured networks during IDLE state for additional reconnaissance
 - **Results Storage**: Saves cracked networks and discovered networks to JSON files
 
 #### **Configuration**
@@ -108,6 +110,8 @@ Wireless scanning can be configured via `config/shared_config.json`:
 ```json
 {
   "wireless_scan_enabled": true,
+  "wireless_require_alfa_adapter": true,
+  "wireless_idle_scanning_enabled": true,
   "wireless_attack_timeout": 300,
   "wireless_scan_interval": 600,
   "wireless_wps_priority": true,
@@ -115,6 +119,10 @@ Wireless scanning can be configured via `config/shared_config.json`:
   "wireless_handshake_enabled": true
 }
 ```
+
+**Adapter Detection**: By default, Bjorn requires an Alfa USB wifi adapter to be connected before performing wireless attacks. This can be disabled by setting `"wireless_require_alfa_adapter": false` in the configuration.
+
+**IDLE Network Scanning**: When Bjorn is in IDLE state, it can automatically connect to unsecured wifi networks for scanning, then reconnect to the primary network. Enable with `"wireless_idle_scanning_enabled": true`.
 
 #### **Automatic Triggering**
 Wireless scanning is automatically triggered when:
@@ -159,6 +167,7 @@ Bjorn displays animated status icons that change based on current activities:
 - **SQLBruteforce**: Attempting SQL brute force attacks
 - **TelnetBruteforce**: Attempting Telnet brute force attacks
 - **Wifite2Connector**: Performing wireless network attacks
+- **Wifite2IdleScan**: Scanning networks while connected to unsecured wifi during IDLE state
 - **StealFilesSSH**: Stealing files via SSH
 - **StealFilesSMB**: Stealing files via SMB
 - **StealFilesRDP**: Stealing files via RDP

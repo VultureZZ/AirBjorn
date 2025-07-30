@@ -467,6 +467,29 @@ class Orchestrator:
                                 break
                     idle_start_time = datetime.now()
                     idle_end_time = idle_start_time + timedelta(seconds=self.shared_data.scan_interval)
+
+                    # Perform IDLE network scanning if wifite2 is available and Alfa adapter is detected
+                    try:
+                        from actions.wifite2_connector import Wifite2Connector
+                        wifite2_connector = Wifite2Connector(self.shared_data)
+
+                        # Check if Alfa adapter is detected and wireless scanning is enabled
+                        if (getattr(self.shared_data, 'wireless_scan_enabled', True) and
+                            getattr(self.shared_data, 'wireless_require_alfa_adapter', True) and
+                            getattr(self.shared_data, 'wireless_idle_scanning_enabled', True) and
+                            wifite2_connector.detect_alfa_wifi_adapter()):
+
+                            logger.info("Starting IDLE network scanning with wifite2...")
+                            self.shared_data.bjornorch_status = "Wifite2IdleScan"
+                            wifite2_connector.perform_idle_network_scanning()
+                            logger.info("IDLE network scanning completed")
+                        else:
+                            logger.info("Skipping IDLE network scanning - no Alfa adapter or wireless scanning disabled")
+                    except ImportError as e:
+                        logger.debug(f"Wifite2 connector not available for IDLE scanning: {e}")
+                    except Exception as e:
+                        logger.error(f"Error during IDLE network scanning: {e}")
+
                     while datetime.now() < idle_end_time:
                         if self.shared_data.orchestrator_should_exit:
                             break

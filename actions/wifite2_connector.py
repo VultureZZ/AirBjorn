@@ -43,9 +43,451 @@ class Wifite2Connector:
         # Initialize results storage
         self.cracked_networks = []
         self.available_networks = []
+        self.alfa_interface = None  # Store the detected Alfa adapter interface
         self.load_existing_results()
 
         logger.info("Wifite2Connector initialized.")
+
+    def get_primary_network_info(self):
+        """
+        Get information about the primary network that Bjorn should connect to.
+        Returns a dictionary with SSID and other connection info.
+        """
+        try:
+            # Get current connection info
+            result = subprocess.run(['nmcli', '-t', '-f', 'SSID,DEVICE,TYPE', 'connection', 'show', '--active'],
+                                  capture_output=True, text=True, timeout=10)
+
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                for line in lines:
+                    if line and 'wifi' in line:
+                        parts = line.split(':')
+                        if len(parts) >= 2:
+                            return {
+                                'ssid': parts[0],
+                                'device': parts[1],
+                                'type': parts[2] if len(parts) > 2 else 'wifi'
+                            }
+
+            # Fallback: try to get from wpa_supplicant
+            try:
+                with open('/etc/wpa_supplicant/wpa_supplicant.conf', 'r') as f:
+                    content = f.read()
+                    # Look for network blocks
+                    network_blocks = re.findall(r'network\s*=\s*\{([^}]+)\}', content, re.DOTALL)
+                    for block in network_blocks:
+                        ssid_match = re.search(r'ssid\s*=\s*"([^"]+)"', block)
+                        if ssid_match:
+                            return {'ssid': ssid_match.group(1), 'device': 'wlan0', 'type': 'wifi'}
+            except Exception as e:
+                logger.debug(f"Could not read wpa_supplicant.conf: {e}")
+
+            return None
+        except Exception as e:
+            logger.error(f"Error getting primary network info: {e}")
+            return None
+
+    def save_current_connection(self):
+        """
+        Save the current network connection information.
+        """
+        try:
+            result = subprocess.run(['nmcli', '-t', '-f', 'NAME,DEVICE,TYPE', 'connection', 'show', '--active'],
+                                  capture_output=True, text=True, timeout=10)
+
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                for line in lines:
+                    if line and 'wifi' in line:
+                        parts = line.split(':')
+                        if len(parts) >= 2:
+                            self.primary_connection = {
+                                'name': parts[0],
+                                'device': parts[1],
+                                'type': parts[2] if len(parts) > 2 else 'wifi'
+                            }
+                            logger.info(f"Saved primary connection: {self.primary_connection}")
+                            return True
+
+            return False
+        except Exception as e:
+            logger.error(f"Error saving current connection: {e}")
+            return False
+
+    def scan_for_unsecured_networks(self):
+        """
+        Scan for unsecured (open) wireless networks.
+        Returns a list of unsecured networks.
+        """
+        try:
+            # Use wifite2 to scan for networks
+            cmd = ["wifite", "--showb", "--kill", "--quiet"]
+
+            if self.alfa_interface:
+                cmd.extend(["--interface", self.alfa_interface])
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+
+            if result.returncode == 0:
+                networks = self.parse_network_scan(result.stdout)
+                # Filter for unsecured networks
+                unsecured_networks = [net for net in networks if net.get('encryption', '').lower() in ['open', 'none', '']]
+                logger.info(f"Found {len(unsecured_networks)} unsecured networks")
+                return unsecured_networks
+            else:
+                logger.error(f"Failed to scan for networks: {result.stderr}")
+                return []
+
+        except Exception as e:
+            logger.error(f"Error scanning for unsecured networks: {e}")
+            return []
+
+    def connect_to_unsecured_network(self, network):
+        """
+        Connect to an unsecured network for scanning purposes.
+        """
+        try:
+            ssid = network.get('ssid', '')
+            if not ssid:
+                logger.error("No SSID provided for connection")
+                return False
+
+            logger.info(f"Connecting to unsecured network: {ssid}")
+
+            # Disconnect from current network first
+            subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'],
+                         capture_output=True, timeout=10)
+
+            # Connect to the unsecured network
+            cmd = ['nmcli', 'device', 'wifi', 'connect', ssid]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+            if result.returncode == 0:
+                logger.info(f"Successfully connected to unsecured network: {ssid}")
+                return True
+            else:
+                logger.error(f"Failed to connect to {ssid}: {result.stderr}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error connecting to unsecured network: {e}")
+            return False
+
+    def reconnect_to_primary_network(self):
+        """
+        Reconnect to the primary network that was saved earlier.
+        """
+        try:
+            if not hasattr(self, 'primary_connection') or not self.primary_connection:
+                logger.warning("No primary connection saved, attempting to reconnect to default")
+                # Try to reconnect to the default network
+                result = subprocess.run(['nmcli', 'device', 'reapply'],
+                                     capture_output=True, text=True, timeout=30)
+                return result.returncode == 0
+
+            # Disconnect from current network
+            subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'],
+                         capture_output=True, timeout=10)
+
+            # Reconnect to primary network
+            connection_name = self.primary_connection.get('name', '')
+            if connection_name:
+                cmd = ['nmcli', 'connection', 'up', connection_name]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+                if result.returncode == 0:
+                    logger.info(f"Successfully reconnected to primary network: {connection_name}")
+                    return True
+                else:
+                    logger.error(f"Failed to reconnect to primary network: {result.stderr}")
+                    return False
+            else:
+                logger.error("No primary connection name available")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error reconnecting to primary network: {e}")
+            return False
+
+    def perform_idle_network_scanning(self):
+        """
+        Perform network scanning during IDLE state.
+        Connects to unsecured networks, performs scanning, then reconnects to primary.
+        """
+        try:
+            logger.info("Starting IDLE network scanning...")
+
+            # Save current connection
+            if not self.save_current_connection():
+                logger.warning("Could not save current connection, proceeding anyway")
+
+            # Scan for unsecured networks
+            unsecured_networks = self.scan_for_unsecured_networks()
+
+            if not unsecured_networks:
+                logger.info("No unsecured networks found for IDLE scanning")
+                return True
+
+            # Try to connect to each unsecured network and perform scanning
+            for network in unsecured_networks[:3]:  # Limit to 3 networks to avoid excessive scanning
+                ssid = network.get('ssid', '')
+                logger.info(f"Attempting to connect to unsecured network: {ssid}")
+
+                if self.connect_to_unsecured_network(network):
+                    # Perform network scanning while connected
+                    logger.info(f"Connected to {ssid}, performing network scan...")
+
+                    # Wait a bit for connection to stabilize
+                    time.sleep(5)
+
+                    # Perform network scanning (this could be nmap, ping sweep, etc.)
+                    self.perform_network_scan_from_unsecured_network(network)
+
+                    # Disconnect and try next network
+                    subprocess.run(['nmcli', 'device', 'disconnect', 'wlan0'],
+                                 capture_output=True, timeout=10)
+                    time.sleep(2)
+
+            # Reconnect to primary network
+            logger.info("Reconnecting to primary network...")
+            if self.reconnect_to_primary_network():
+                logger.info("Successfully reconnected to primary network")
+                return True
+            else:
+                logger.error("Failed to reconnect to primary network")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error during IDLE network scanning: {e}")
+            # Try to reconnect to primary network as fallback
+            self.reconnect_to_primary_network()
+            return False
+
+    def perform_network_scan_from_unsecured_network(self, network):
+        """
+        Perform network scanning while connected to an unsecured network.
+        """
+        try:
+            ssid = network.get('ssid', '')
+            logger.info(f"Performing network scan from unsecured network: {ssid}")
+
+            # Get the network we're connected to
+            result = subprocess.run(['ip', 'route', 'show', 'default'],
+                                 capture_output=True, text=True, timeout=10)
+
+            if result.returncode == 0:
+                # Extract gateway IP
+                lines = result.stdout.strip().split('\n')
+                for line in lines:
+                    if 'default' in line:
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            gateway = parts[2]
+                            logger.info(f"Gateway IP: {gateway}")
+
+                            # Perform a quick network scan
+                            self.scan_network_from_gateway(gateway)
+                            break
+
+        except Exception as e:
+            logger.error(f"Error performing network scan from unsecured network: {e}")
+
+    def scan_network_from_gateway(self, gateway):
+        """
+        Perform a quick network scan from the given gateway.
+        """
+        try:
+            # Extract network from gateway (assuming /24)
+            network_parts = gateway.split('.')
+            if len(network_parts) == 4:
+                network = f"{network_parts[0]}.{network_parts[1]}.{network_parts[2]}.0/24"
+                logger.info(f"Scanning network: {network}")
+
+                # Quick ping sweep
+                cmd = ['nmap', '-sn', '--max-retries', '1', '--host-timeout', '5s', network]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+
+                if result.returncode == 0:
+                    # Parse results for live hosts
+                    lines = result.stdout.split('\n')
+                    live_hosts = []
+                    for line in lines:
+                        if 'Nmap scan report for' in line:
+                            ip_match = re.search(r'(\d+\.\d+\.\d+\.\d+)', line)
+                            if ip_match:
+                                live_hosts.append(ip_match.group(1))
+
+                    logger.info(f"Found {len(live_hosts)} live hosts in network {network}")
+
+                    # Save results
+                    scan_results = {
+                        'network': network,
+                        'gateway': gateway,
+                        'live_hosts': live_hosts,
+                        'scan_time': datetime.now().isoformat()
+                    }
+
+                    # Save to wireless results directory
+                    scan_file = os.path.join(self.wifite_results_dir, f"idle_scan_{network.replace('/', '_')}.json")
+                    with open(scan_file, 'w') as f:
+                        json.dump(scan_results, f, indent=4)
+
+                    logger.info(f"Saved scan results to {scan_file}")
+
+        except Exception as e:
+            logger.error(f"Error scanning network from gateway: {e}")
+
+    def detect_alfa_wifi_adapter(self):
+        """
+        Detect if an Alfa USB wifi adapter is connected.
+        Returns True if an Alfa adapter is found, False otherwise.
+        Also stores the interface name in self.alfa_interface.
+        """
+        try:
+            # Check for USB devices using lsusb
+            result = subprocess.run(['lsusb'], capture_output=True, text=True, timeout=10)
+
+            if result.returncode != 0:
+                logger.error(f"Failed to execute lsusb: {result.stderr}")
+                return False
+
+            # Common Alfa adapter vendor IDs and product names
+            alfa_identifiers = [
+                'alfa', 'ALFA', 'Alfa',
+                'AWUS036ACH', 'AWUS036NHA', 'AWUS036NEH', 'AWUS036AC',
+                'AWUS051NH', 'AWUS036H', 'AWUS036NH'
+            ]
+
+            usb_output = result.stdout.lower()
+            alfa_detected_in_usb = False
+
+            # Check if any Alfa identifier is found in the USB output
+            for identifier in alfa_identifiers:
+                if identifier.lower() in usb_output:
+                    logger.info(f"Alfa wifi adapter detected in USB: {identifier}")
+                    alfa_detected_in_usb = True
+                    break
+
+            # Also check for wifi interfaces that might be from Alfa adapters
+            try:
+                # Check for wifi interfaces
+                iw_result = subprocess.run(['iw', 'dev'], capture_output=True, text=True, timeout=10)
+                if iw_result.returncode == 0:
+                    # Look for interfaces that might be from USB adapters
+                    interfaces = iw_result.stdout
+                    if 'phy' in interfaces and 'wlan' in interfaces:
+                        logger.info("USB wifi adapter detected, checking if it's Alfa...")
+
+                        # Check if the adapter supports monitor mode (common for Alfa adapters)
+                        for line in interfaces.split('\n'):
+                            if 'wlan' in line:
+                                interface = line.strip().split()[1] if len(line.strip().split()) > 1 else None
+                                if interface:
+                                    # Test if interface supports monitor mode
+                                    test_result = subprocess.run(['iw', interface, 'set', 'monitor', 'none'],
+                                                              capture_output=True, text=True, timeout=5)
+                                    if test_result.returncode == 0:
+                                        # Restore managed mode
+                                        subprocess.run(['iw', interface, 'set', 'type', 'managed'],
+                                                     capture_output=True, timeout=5)
+                                        logger.info(f"Monitor mode capable interface found: {interface}")
+
+                                        # If we detected Alfa in USB or this is likely an Alfa adapter
+                                        if alfa_detected_in_usb or self._is_likely_alfa_interface(interface):
+                                            self.alfa_interface = interface
+                                            logger.info(f"Alfa adapter interface identified: {interface}")
+                                            return True
+            except Exception as e:
+                logger.debug(f"Error checking wifi interfaces: {e}")
+
+            logger.info("No Alfa wifi adapter detected")
+            return False
+
+        except subprocess.TimeoutExpired:
+            logger.error("Timeout while detecting USB wifi adapter")
+            return False
+        except Exception as e:
+            logger.error(f"Error detecting Alfa wifi adapter: {e}")
+            return False
+
+    def _is_likely_alfa_interface(self, interface):
+        """
+        Check if an interface is likely from an Alfa adapter.
+        """
+        try:
+            # Get interface details
+            result = subprocess.run(['iw', interface, 'info'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                # Look for characteristics common to Alfa adapters
+                output = result.stdout.lower()
+                # Alfa adapters often have specific driver names or capabilities
+                alfa_indicators = ['rtl', 'ath9k', 'ath10k', 'mac80211']
+                for indicator in alfa_indicators:
+                    if indicator in output:
+                        return True
+        except Exception as e:
+            logger.debug(f"Error checking interface details: {e}")
+
+        return False
+
+    def _ensure_monitor_mode(self):
+        """
+        Ensure the Alfa adapter is in monitor mode for attacks.
+        Returns True if successful, False otherwise.
+        """
+        if not self.alfa_interface:
+            logger.warning("No Alfa interface detected, cannot set monitor mode")
+            return False
+
+        try:
+            # Check current mode
+            result = subprocess.run(['iw', self.alfa_interface, 'info'],
+                                  capture_output=True, text=True, timeout=5)
+
+            if result.returncode == 0:
+                if 'type monitor' in result.stdout.lower():
+                    logger.info(f"Interface {self.alfa_interface} already in monitor mode")
+                    return True
+                else:
+                    # Set to monitor mode
+                    logger.info(f"Setting interface {self.alfa_interface} to monitor mode")
+                    monitor_result = subprocess.run(['iw', self.alfa_interface, 'set', 'type', 'monitor'],
+                                                 capture_output=True, text=True, timeout=10)
+
+                    if monitor_result.returncode == 0:
+                        logger.info(f"Successfully set {self.alfa_interface} to monitor mode")
+                        return True
+                    else:
+                        logger.error(f"Failed to set {self.alfa_interface} to monitor mode: {monitor_result.stderr}")
+                        return False
+            else:
+                logger.error(f"Failed to get interface info for {self.alfa_interface}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error setting monitor mode: {e}")
+            return False
+
+    def _restore_managed_mode(self):
+        """
+        Restore the Alfa adapter to managed mode after attacks.
+        """
+        if not self.alfa_interface:
+            return
+
+        try:
+            logger.info(f"Restoring interface {self.alfa_interface} to managed mode")
+            result = subprocess.run(['iw', self.alfa_interface, 'set', 'type', 'managed'],
+                                  capture_output=True, text=True, timeout=10)
+
+            if result.returncode == 0:
+                logger.info(f"Successfully restored {self.alfa_interface} to managed mode")
+            else:
+                logger.warning(f"Failed to restore {self.alfa_interface} to managed mode: {result.stderr}")
+
+        except Exception as e:
+            logger.error(f"Error restoring managed mode: {e}")
 
     def load_existing_results(self):
         """Load existing cracked networks and available networks from files."""
@@ -81,8 +523,22 @@ class Wifite2Connector:
         self.shared_data.bjornorch_status = "Wifite2Scan"
 
         try:
-            # Use wifite2 to scan for networks
+            # Ensure Alfa adapter is in monitor mode if detected
+            if self.alfa_interface:
+                if not self._ensure_monitor_mode():
+                    logger.error("Failed to set Alfa adapter to monitor mode")
+                    return []
+                logger.info(f"Using Alfa adapter interface: {self.alfa_interface}")
+            else:
+                logger.warning("No specific interface specified, wifite2 will use default")
+
+            # Use wifite2 to scan for networks with specific interface
             cmd = ["wifite", "--showb", "--kill", "--quiet"]
+
+            # Add interface specification if Alfa adapter is detected
+            if self.alfa_interface:
+                cmd.extend(["--interface", self.alfa_interface])
+
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
             if result.returncode == 0:
@@ -133,6 +589,12 @@ class Wifite2Connector:
         logger.info(f"Attacking network: {network['ssid']} ({network['bssid']})")
 
         try:
+            # Ensure Alfa adapter is in monitor mode if detected
+            if self.alfa_interface:
+                if not self._ensure_monitor_mode():
+                    logger.error("Failed to set Alfa adapter to monitor mode for attack")
+                    return False
+
             # Create a temporary configuration file for this attack
             config_file = os.path.join(self.wifite_results_dir, f"attack_{network['bssid'].replace(':', '')}.conf")
 
@@ -147,6 +609,11 @@ class Wifite2Connector:
                 if self.shared_data.wireless_handshake_enabled:
                     f.write("--wpa\n")
 
+                # Add interface specification if Alfa adapter is detected
+                if self.alfa_interface:
+                    f.write(f"interface={self.alfa_interface}\n")
+                    logger.info(f"Using Alfa adapter interface for attack: {self.alfa_interface}")
+
                 f.write("--kill\n")
                 f.write("--quiet\n")
 
@@ -157,6 +624,10 @@ class Wifite2Connector:
 
             # Clean up config file
             os.remove(config_file)
+
+            # Restore managed mode after attack
+            if self.alfa_interface:
+                self._restore_managed_mode()
 
             if result.returncode == 0:
                 # Check if attack was successful
@@ -284,6 +755,14 @@ class Wifite2Connector:
         if not getattr(self.shared_data, 'wireless_scan_enabled', True):
             logger.info("Wireless scanning is disabled in configuration")
             return False
+
+        # Check if Alfa USB wifi adapter is connected (if required by configuration)
+        if getattr(self.shared_data, 'wireless_require_alfa_adapter', True):
+            if not self.detect_alfa_wifi_adapter():
+                logger.info("No Alfa USB wifi adapter detected. Wireless attacks require an Alfa adapter.")
+                return False
+        else:
+            logger.info("Alfa adapter requirement disabled in configuration")
 
         # Step 1: Scan for networks
         networks = self.scan_for_networks()

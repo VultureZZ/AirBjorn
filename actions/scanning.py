@@ -623,7 +623,14 @@ class NetworkScanner:
                 stats = wifite2_connector.get_statistics()
                 self.logger.info(f"Wireless statistics: {stats}")
             else:
-                self.logger.info("Wireless attack completed but no networks were cracked")
+                # Check if it failed due to missing adapter
+                if getattr(self.shared_data, 'wireless_require_alfa_adapter', True):
+                    if not wifite2_connector.detect_alfa_wifi_adapter():
+                        self.logger.info("Wireless scan skipped - no Alfa USB wifi adapter detected")
+                    else:
+                        self.logger.info("Wireless attack completed but no networks were cracked")
+                else:
+                    self.logger.info("Wireless attack completed but no networks were cracked")
 
         except ImportError as e:
             self.logger.error(f"Wifite2 connector not available: {e}")

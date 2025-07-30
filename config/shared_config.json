@@ -99,6 +99,8 @@
     "portend": 2,
     "__title_wireless__": "Wireless Settings",
     "wireless_scan_enabled": true,
+    "wireless_require_alfa_adapter": true,
+    "wireless_idle_scanning_enabled": true,
     "wireless_attack_timeout": 300,
     "wireless_scan_interval": 600,
     "wireless_retry_failed": true,
