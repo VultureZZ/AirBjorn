@@ -169,7 +169,7 @@ class NetworkScanner:
                     mac, ip, hostname, ports = data
                     if not mac or mac == "STANDALONE" or ip == "STANDALONE" or hostname == "STANDALONE":
                         continue
-                    
+
                     # Check if MAC address is "00:00:00:00:00:00"
                     if mac == "00:00:00:00:00:00":
                         continue
@@ -456,8 +456,8 @@ class NetworkScanner:
             Calculates the total and alive host counts.
             """
             try:
-                # self.all_known_hosts_count = self.df.shape[0] 
-                self.all_known_hosts_count = self.df[self.df['MAC Address'] != 'STANDALONE'].shape[0] 
+                # self.all_known_hosts_count = self.df.shape[0]
+                self.all_known_hosts_count = self.df[self.df['MAC Address'] != 'STANDALONE'].shape[0]
                 self.alive_hosts_count = self.df[self.df['Alive'] == 1].shape[0]
             except Exception as e:
                 self.logger.error(f"Error in calculate_hosts_counts: {e}")
@@ -491,7 +491,7 @@ class NetworkScanner:
                 self.logger.info(f"Results saved to {self.output_csv_path}")
             except Exception as e:
                 self.logger.error(f"Error in update_livestatus: {e}")
-        
+
         def clean_scan_results(self, scan_results_dir):
             """
             Cleans up old scan result files, keeping only the most recent ones.
@@ -560,8 +560,75 @@ class NetworkScanner:
             updater = self.LiveStatusUpdater(source_csv_path, output_csv_path)
             updater.update_livestatus()
             updater.clean_scan_results(self.shared_data.scan_results_dir)
-        except Exception as e:
+
+            # Check if we should perform wireless scanning
+            self.check_and_perform_wireless_scan()
+
+                except Exception as e:
             self.logger.error(f"Error in scan: {e}")
+
+    def check_and_perform_wireless_scan(self):
+        """
+        Check if wireless scanning should be performed and execute it if needed.
+        """
+        try:
+            # Check if wireless scanning is enabled in configuration
+            if not getattr(self.shared_data, 'wireless_scan_enabled', True):
+                self.logger.info("Wireless scanning is disabled in configuration")
+                return
+
+            # Check if there are any alive hosts with wireless-related ports
+            # or if no hosts are alive, perform wireless scan
+            current_data = self.shared_data.read_data()
+            alive_hosts = [row for row in current_data if row.get("Alive") == '1']
+
+            # Check if any alive hosts have wireless-related ports (80, 443, 8080, etc.)
+            wireless_ports = ['80', '443', '8080', '8443']
+            has_wireless_activity = False
+
+            for host in alive_hosts:
+                ports = host.get("Ports", "").split(';')
+                if any(port in wireless_ports for port in ports):
+                    has_wireless_activity = True
+                    break
+
+            # If no alive hosts or no wireless activity, perform wireless scan
+            if not alive_hosts or not has_wireless_activity:
+                self.logger.info("No wireless activity detected, performing wireless network scan...")
+                self.perform_wireless_scan()
+            else:
+                self.logger.info("Wireless activity detected, skipping wireless scan")
+
+        except Exception as e:
+            self.logger.error(f"Error in check_and_perform_wireless_scan: {e}")
+
+    def perform_wireless_scan(self):
+        """
+        Perform wireless network scanning using wifite2.
+        """
+        try:
+            self.logger.info("Starting wireless network scan...")
+            self.shared_data.bjornorch_status = "WirelessScan"
+
+            # Import and execute wifite2 connector
+            from actions.wifite2_connector import Wifite2Connector
+            wifite2_connector = Wifite2Connector(self.shared_data)
+
+            # Execute wireless attack
+            success = wifite2_connector.execute_wireless_attack()
+
+            if success:
+                self.logger.success("Wireless attack completed successfully")
+                # Update statistics
+                stats = wifite2_connector.get_statistics()
+                self.logger.info(f"Wireless statistics: {stats}")
+            else:
+                self.logger.info("Wireless attack completed but no networks were cracked")
+
+        except ImportError as e:
+            self.logger.error(f"Wifite2 connector not available: {e}")
+        except Exception as e:
+            self.logger.error(f"Error performing wireless scan: {e}")
 
     def start(self):
         """

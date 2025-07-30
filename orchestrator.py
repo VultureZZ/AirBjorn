@@ -1,7 +1,7 @@
 # orchestrator.py
 # Description:
-# This file, orchestrator.py, is the heuristic Bjorn brain, and it is responsible for coordinating and executing various network scanning and offensive security actions 
-# It manages the loading and execution of actions, handles retries for failed and successful actions, 
+# This file, orchestrator.py, is the heuristic Bjorn brain, and it is responsible for coordinating and executing various network scanning and offensive security actions
+# It manages the loading and execution of actions, handles retries for failed and successful actions,
 # and updates the status of the orchestrator.
 #
 # Key functionalities include:
@@ -36,10 +36,96 @@ class Orchestrator:
         self.failed_scans_count = 0  # Count the number of failed scans
         self.network_scanner = None
         self.last_vuln_scan_time = datetime.min  # Set the last vulnerability scan time to the minimum datetime value
+
+        # Dynamic thread management
+        self.max_threads = getattr(self.shared_data, 'max_concurrent_actions', 10)
+        self.semaphore = threading.Semaphore(self.max_threads)
+        self.active_threads = 0
+        self.thread_lock = threading.Lock()
+
+        # Metrics collection
+        self.metrics = {
+            'actions_executed': 0,
+            'successful_attacks': 0,
+            'failed_attacks': 0,
+            'scan_duration': 0,
+            'targets_discovered': 0,
+            'last_scan_time': None
+        }
+
         self.load_actions()  # Load all actions from the actions file
         actions_loaded = [action.__class__.__name__ for action in self.actions + self.standalone_actions]  # Get the names of the loaded actions
         logger.info(f"Actions loaded: {actions_loaded}")
-        self.semaphore = threading.Semaphore(10)  # Limit the number of active threads to 10
+        logger.info(f"Max concurrent threads: {self.max_threads}")
+
+    def get_thread_stats(self):
+        """
+        Get current threading statistics.
+
+        Returns:
+            dict: Current thread statistics
+        """
+        with self.thread_lock:
+            return {
+                'active_threads': self.active_threads,
+                'max_threads': self.max_threads,
+                'available_slots': self.max_threads - self.active_threads
+            }
+
+    def acquire_thread_slot(self):
+        """
+        Acquire a thread slot with timeout.
+
+        Returns:
+            bool: True if slot acquired, False if timeout
+        """
+        try:
+            acquired = self.semaphore.acquire(timeout=30)  # 30 second timeout
+            if acquired:
+                with self.thread_lock:
+                    self.active_threads += 1
+                    logger.debug(f"Thread slot acquired. Active: {self.active_threads}/{self.max_threads}")
+            return acquired
+        except Exception as e:
+            logger.error(f"Error acquiring thread slot: {e}")
+            return False
+
+    def release_thread_slot(self):
+        """Release a thread slot."""
+        try:
+            with self.thread_lock:
+                if self.active_threads > 0:
+                    self.active_threads -= 1
+                    logger.debug(f"Thread slot released. Active: {self.active_threads}/{self.max_threads}")
+            self.semaphore.release()
+        except Exception as e:
+            logger.error(f"Error releasing thread slot: {e}")
+
+    def update_metrics(self, metric_type, value=1):
+        """
+        Update metrics counters.
+
+        Args:
+            metric_type: Type of metric to update
+            value: Value to add (default 1)
+        """
+        try:
+            if metric_type in self.metrics:
+                if isinstance(self.metrics[metric_type], (int, float)):
+                    self.metrics[metric_type] += value
+                elif metric_type == 'last_scan_time':
+                    self.metrics[metric_type] = datetime.now()
+        except Exception as e:
+            logger.error(f"Error updating metrics: {e}")
+
+    def get_metrics(self):
+        """
+        Get current metrics.
+
+        Returns:
+            dict: Current metrics
+        """
+        return self.metrics.copy()
 
     def load_actions(self):
         """Load all actions from the actions file"""
@@ -125,59 +211,80 @@ class Orchestrator:
 
 
     def execute_action(self, action, ip, ports, row, action_key, current_data):
-        """Execute an action on a target"""
-        if hasattr(action, 'port') and str(action.port) not in ports:
-            return False
+        """
+        Execute an action on a target with improved error handling and metrics.
 
-        # Check parent action status
-        if action.b_parent_action:
-            parent_status = row.get(action.b_parent_action, "")
-            if 'success' not in parent_status:
-                return False  # Skip child action if parent action has not succeeded
+        Args:
+            action: Action instance to execute
+            ip: Target IP address
+            ports: List of open ports
+            row: Current data row
+            action_key: Action identifier
+            current_data: All current data
 
-        # Check if the action is already successful and if retries are disabled for successful actions
-        if 'success' in row[action_key]:
-            if not self.shared_data.retry_success_actions:
-                return False
-            else:
-                try:
-                    last_success_time = datetime.strptime(row[action_key].split('_')[1] + "_" + row[action_key].split('_')[2], "%Y%m%d_%H%M%S")
-                    if datetime.now() < last_success_time + timedelta(seconds=self.shared_data.success_retry_delay):
-                        retry_in_seconds = (last_success_time + timedelta(seconds=self.shared_data.success_retry_delay) - datetime.now()).seconds
-                        formatted_retry_in = str(timedelta(seconds=retry_in_seconds))
-                        logger.warning(f"Skipping action {action.action_name} for {ip}:{action.port} due to success retry delay, retry possible in: {formatted_retry_in}")
-                        return False  # Skip if the success retry delay has not passed
-                except ValueError as ve:
-                    logger.error(f"Error parsing last success time for {action.action_name}: {ve}")
-
-        last_failed_time_str = row.get(action_key, "")
-        if 'failed' in last_failed_time_str:
-            try:
-                last_failed_time = datetime.strptime(last_failed_time_str.split('_')[1] + "_" + last_failed_time_str.split('_')[2], "%Y%m%d_%H%M%S")
-                if datetime.now() < last_failed_time + timedelta(seconds=self.shared_data.failed_retry_delay):
-                    retry_in_seconds = (last_failed_time + timedelta(seconds=self.shared_data.failed_retry_delay) - datetime.now()).seconds
-                    formatted_retry_in = str(timedelta(seconds=retry_in_seconds))
-                    logger.warning(f"Skipping action {action.action_name} for {ip}:{action.port} due to failed retry delay, retry possible in: {formatted_retry_in}")
-                    return False  # Skip if the retry delay has not passed
-            except ValueError as ve:
-                logger.error(f"Error parsing last failed time for {action.action_name}: {ve}")
-
+        Returns:
+            bool: True if action executed successfully, False otherwise
+        """
         try:
-            logger.info(f"Executing action {action.action_name} for {ip}:{action.port}")
-            self.shared_data.bjornstatustext2 = ip
-            result = action.execute(ip, str(action.port), row, action_key)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            if result == 'success':
-                row[action_key] = f'success_{timestamp}'
-            else:
-                row[action_key] = f'failed_{timestamp}'
-            self.shared_data.write_data(current_data)
-            return result == 'success'
+            # Validate inputs
+            if not action or not ip or not ports:
+                logger.warning(f"Invalid inputs for action execution: action={action}, ip={ip}, ports={ports}")
+                return False
+
+            # Check if port is required and available
+            if hasattr(action, 'port') and str(action.port) not in ports:
+                return False
+
+            # Check parent action status
+            if action.b_parent_action:
+                parent_status = row.get(action.b_parent_action, "")
+                if 'success' not in parent_status:
+                    return False  # Skip child action if parent action has not succeeded
+
+            # Check if the action is already successful and if retries are disabled for successful actions
+            if 'success' in row.get(action_key, ""):
+                if not self.shared_data.retry_success_actions:
+                    return False  # Skip if retries are disabled for successful actions
+
+            # Check if the action has failed and if retries are disabled for failed actions
+            if 'failed' in row.get(action_key, ""):
+                if not self.shared_data.retry_failed_actions:
+                    return False  # Skip if retries are disabled for failed actions
+
+            # Acquire thread slot
+            if not self.acquire_thread_slot():
+                logger.warning(f"Could not acquire thread slot for action {action_key} on {ip}")
+                return False
+
+            try:
+                # Execute the action
+                logger.info(f"Executing {action_key} on {ip}")
+                self.update_metrics('actions_executed')
+
+                start_time = time.time()
+                result = action.execute(ip, action.port, row, action_key)
+                execution_time = time.time() - start_time
+
+                # Update metrics based on result
+                if result == 'success':
+                    self.update_metrics('successful_attacks')
+                    logger.info(f"Action {action_key} on {ip} completed successfully in {execution_time:.2f}s")
+                else:
+                    self.update_metrics('failed_attacks')
+                    logger.info(f"Action {action_key} on {ip} failed in {execution_time:.2f}s")
+
+                # Update the row with the result
+                row[action_key] = result
+
+                return result == 'success'
+
+            finally:
+                # Always release the thread slot
+                self.release_thread_slot()
+
         except Exception as e:
-            logger.error(f"Action {action.action_name} failed: {e}")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            row[action_key] = f'failed_{timestamp}'
-            self.shared_data.write_data(current_data)
+            logger.error(f"Error executing action {action_key} on {ip}: {e}")
+            self.update_metrics('failed_attacks')
             return False
 
     def execute_standalone_action(self, action, current_data):

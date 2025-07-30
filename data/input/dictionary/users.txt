@@ -1,3 +1,10 @@
-root
 admin
-bjorn
+administrator
+root
+user
+test
+guest
+support
+manager
+service
+demo

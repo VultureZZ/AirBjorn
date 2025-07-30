@@ -1,9 +1,9 @@
 #shared.py
 # Description:
 # This file, shared.py, is a core component responsible for managing shared resources and data for different modules in the Bjorn project.
-# It handles the initialization and configuration of paths, logging, fonts, and images. Additionally, it sets up the environment, 
+# It handles the initialization and configuration of paths, logging, fonts, and images. Additionally, it sets up the environment,
 # creates necessary directories and files, and manages the loading and saving of configuration settings.
-# 
+#
 # Key functionalities include:
 # - Initializing various paths used by the application, including directories for configuration, data, actions, web resources, and logs.
 # - Setting up the environment, including the e-paper display, network knowledge base, and actions JSON configuration.
@@ -21,20 +21,20 @@ import time
 import csv
 import logging
 import subprocess
-from PIL import Image, ImageFont 
+from PIL import Image, ImageFont
 from logger import Logger
 from epd_helper import EPDHelper
 
 
-logger = Logger(name="shared.py", level=logging.DEBUG) # Create a logger object 
+logger = Logger(name="shared.py", level=logging.DEBUG) # Create a logger object
 
 class SharedData:
     """Shared data between the different modules."""
     def __init__(self):
         self.initialize_paths() # Initialize the paths used by the application
-        self.status_list = [] 
+        self.status_list = []
         self.last_comment_time = time.time() # Last time a comment was displayed
-        self.default_config = self.get_default_config() # Default configuration of the application  
+        self.default_config = self.get_default_config() # Default configuration of the application
         self.config = self.default_config.copy() # Configuration of the application
         # Load existing configuration first
         self.load_config()
@@ -43,7 +43,7 @@ class SharedData:
         self.update_mac_blacklist()
         self.setup_environment() # Setup the environment
         self.initialize_variables() # Initialize the variables used by the application
-        self.create_livestatusfile() 
+        self.create_livestatusfile()
         self.load_fonts() # Load the fonts used by the application
         self.load_images() # Load the images used by the application
         # self.create_initial_image() # Create the initial image displayed on the screen
@@ -127,7 +127,7 @@ class SharedData:
             "log_warning": True,
             "log_error": True,
             "log_critical": True,
-            
+
             "startup_delay": 10,
             "web_delay": 2,
             "screen_delay": 1,
@@ -139,24 +139,33 @@ class SharedData:
             "scan_interval": 180,
             "scan_vuln_interval": 900,
             "failed_retry_delay": 600,
-            "success_retry_delay": 900, 
+            "success_retry_delay": 900,
             "ref_width" :122 ,
             "ref_height" : 250,
             "epd_type": "epd2in13_V4",
-            
-            
+
+
             "__title_lists__": "List Settings",
             "portlist": [20, 21, 22, 23, 25, 53, 69, 80, 110, 111, 135, 137, 139, 143, 161, 162, 389, 443, 445, 512, 513, 514, 587, 636, 993, 995, 1080, 1433, 1521, 2049, 3306, 3389, 5000, 5001, 5432, 5900, 8080, 8443, 9090, 10000],
             "mac_scan_blacklist": [],
             "ip_scan_blacklist": [],
             "steal_file_names": ["ssh.csv","hack.txt"],
             "steal_file_extensions": [".bjorn",".hack",".flag"],
-            
+
             "__title_network__": "Network",
             "nmap_scan_aggressivity": "-T2",
             "portstart": 1,
             "portend": 2,
-            
+
+            "__title_wireless__": "Wireless Settings",
+            "wireless_scan_enabled": True,
+            "wireless_attack_timeout": 300,
+            "wireless_scan_interval": 600,
+            "wireless_retry_failed": True,
+            "wireless_wps_priority": True,
+            "wireless_pmkid_enabled": True,
+            "wireless_handshake_enabled": True,
+
             "__title_timewaits__": "Time Wait Settings",
             "timewait_smb": 0,
             "timewait_ssh": 0,
@@ -172,7 +181,7 @@ class SharedData:
         if mac_address:
             if 'mac_scan_blacklist' not in self.config:
                 self.config['mac_scan_blacklist'] = []
-            
+
             if mac_address not in self.config['mac_scan_blacklist']:
                 self.config['mac_scan_blacklist'].append(mac_address)
                 logger.info(f"Added local MAC address {mac_address} to blacklist")
@@ -187,20 +196,20 @@ class SharedData:
         """Get the MAC address of the primary network interface (usually wlan0 or eth0)."""
         try:
             # First try wlan0 (wireless interface)
-            result = subprocess.run(['cat', '/sys/class/net/wlan0/address'], 
+            result = subprocess.run(['cat', '/sys/class/net/wlan0/address'],
                                  capture_output=True, text=True)
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip().lower()
-            
+
             # If wlan0 fails, try eth0 (ethernet interface)
-            result = subprocess.run(['cat', '/sys/class/net/eth0/address'], 
+            result = subprocess.run(['cat', '/sys/class/net/eth0/address'],
                                  capture_output=True, text=True)
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip().lower()
-            
+
             logger.warning("Could not find MAC address for wlan0 or eth0")
             return None
-            
+
         except Exception as e:
             logger.error(f"Error getting Raspberry Pi MAC address: {e}")
             return None
@@ -215,7 +224,7 @@ class SharedData:
         self.delete_webconsolelog()
         self.initialize_csv()
         self.initialize_epd_display()
-    
+
 
     # def initialize_epd_display(self):
     #     """Initialize the e-paper display."""
@@ -271,13 +280,13 @@ class SharedData:
         except Exception as e:
             logger.error(f"Error initializing EPD display: {e}")
             raise
-        
+
     def initialize_variables(self):
         """Initialize the variables."""
         self.should_exit = False
         self.display_should_exit = False
-        self.orchestrator_should_exit = False 
-        self.webapp_should_exit = False 
+        self.orchestrator_should_exit = False
+        self.webapp_should_exit = False
         self.bjorn_instance = None
         self.wifichanged = False
         self.bluetooth_active = False
@@ -303,6 +312,7 @@ class SharedData:
         self.levelnbr = 0
         self.networkkbnbr = 0
         self.attacksnbr = 0
+        self.wirelessnbr = 0
         self.show_first_image = True
 
     def delete_webconsolelog(self):
@@ -367,7 +377,7 @@ class SharedData:
                         logger.error(f"Error importing module {module_name}: {e}")
                     except Exception as e:
                         logger.error(f"Unexpected error while processing module {module_name}: {e}")
-            
+
             try:
                 with open(self.actions_file, 'w') as file:
                     json.dump(actions_config, file, indent=4)
@@ -561,7 +571,7 @@ class SharedData:
         except AttributeError:
             logger.warning(f"The image for status {self.bjornorch_status} is not available, using IDLE image by default.")
             self.bjornstatusimage = self.attack
-        
+
         self.bjornstatustext = self.bjornorch_status  # Mettre à jour le texte du statut
 
 
@@ -675,11 +685,152 @@ class SharedData:
 
     def update_stats(self):
         """Update the stats based on formulas."""
-        self.coinnbr = int((self.networkkbnbr * 5 + self.crednbr * 5 + self.datanbr * 5 + self.zombiesnbr * 10+self.attacksnbr * 5+ self.vulnnbr * 2 ))
-        self.levelnbr = int((self.networkkbnbr * 0.1 + self.crednbr * 0.2 + self.datanbr * 0.1 + self.zombiesnbr * 0.5+ self.attacksnbr+ self.vulnnbr * 0.01 ))
+        self.coinnbr = int((self.networkkbnbr * 5 + self.crednbr * 5 + self.datanbr * 5 + self.zombiesnbr * 10+self.attacksnbr * 5+ self.vulnnbr * 2 + self.wirelessnbr * 8))
+        self.levelnbr = int((self.networkkbnbr * 0.1 + self.crednbr * 0.2 + self.datanbr * 0.1 + self.zombiesnbr * 0.5+ self.attacksnbr+ self.vulnnbr * 0.01 + self.wirelessnbr * 0.3))
 
 
     def print(self, message):
         """Print a debug message if debug mode is enabled."""
         if self.config['debug_mode']:
             logger.debug(message)
+
+    def validate_config(self):
+        """
+        Validate critical configuration settings.
+
+        Returns:
+            bool: True if configuration is valid, False otherwise
+        """
+        try:
+            logger.info("Validating configuration...")
+
+            # Check for required settings
+            required_settings = [
+                'startup_delay',
+                'scan_interval',
+                'web_delay',
+                'screen_delay',
+                'portstart',
+                'portend'
+            ]
+
+            missing_settings = []
+            for setting in required_settings:
+                if not hasattr(self, setting):
+                    missing_settings.append(setting)
+
+            if missing_settings:
+                logger.error(f"Missing required settings: {missing_settings}")
+                return False
+
+            # Validate numeric settings
+            numeric_settings = {
+                'startup_delay': (0, 3600),  # 0 to 1 hour
+                'scan_interval': (30, 86400),  # 30 seconds to 24 hours
+                'web_delay': (1, 60),  # 1 to 60 seconds
+                'screen_delay': (1, 60),  # 1 to 60 seconds
+                'portstart': (1, 65535),  # Valid port range
+                'portend': (1, 65535)  # Valid port range
+            }
+
+            for setting, (min_val, max_val) in numeric_settings.items():
+                value = getattr(self, setting)
+                if not isinstance(value, (int, float)) or value < min_val or value > max_val:
+                    logger.error(f"Invalid {setting}: {value} (must be between {min_val} and {max_val})")
+                    return False
+
+            # Validate port range
+            if self.portstart >= self.portend:
+                logger.error(f"Invalid port range: start ({self.portstart}) must be less than end ({self.portend})")
+                return False
+
+            # Validate file paths
+            required_files = [
+                self.usersfile,
+                self.passwordsfile
+            ]
+
+            missing_files = []
+            for file_path in required_files:
+                if not os.path.exists(file_path):
+                    missing_files.append(file_path)
+
+            if missing_files:
+                logger.warning(f"Missing files (will be created): {missing_files}")
+                # Don't fail validation for missing files, they can be created
+
+            # Validate directories
+            required_dirs = [
+                self.configdir,
+                self.datadir,
+                self.actions_dir,
+                self.webdir,
+                self.resourcesdir
+            ]
+
+            missing_dirs = []
+            for dir_path in required_dirs:
+                if not os.path.exists(dir_path):
+                    missing_dirs.append(dir_path)
+
+            if missing_dirs:
+                logger.warning(f"Missing directories (will be created): {missing_dirs}")
+                # Don't fail validation for missing directories, they can be created
+
+            logger.info("Configuration validation passed")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error during configuration validation: {e}")
+            return False
+
+    def validate_wireless_config(self):
+        """
+        Validate wireless-specific configuration settings.
+
+        Returns:
+            bool: True if wireless configuration is valid, False otherwise
+        """
+        try:
+            # Check if wireless settings exist
+            wireless_settings = [
+                'wireless_scan_enabled',
+                'wireless_attack_timeout',
+                'wireless_scan_interval',
+                'wireless_retry_failed',
+                'wireless_wps_priority',
+                'wireless_pmkid_enabled',
+                'wireless_handshake_enabled'
+            ]
+
+            for setting in wireless_settings:
+                if not hasattr(self, setting):
+                    logger.warning(f"Wireless setting {setting} not found, using default")
+                    # Set defaults if missing
+                    if setting == 'wireless_scan_enabled':
+                        setattr(self, setting, True)
+                    elif setting == 'wireless_attack_timeout':
+                        setattr(self, setting, 300)
+                    elif setting == 'wireless_scan_interval':
+                        setattr(self, setting, 600)
+                    elif setting == 'wireless_retry_failed':
+                        setattr(self, setting, True)
+                    elif setting == 'wireless_wps_priority':
+                        setattr(self, setting, True)
+                    elif setting == 'wireless_pmkid_enabled':
+                        setattr(self, setting, True)
+                    elif setting == 'wireless_handshake_enabled':
+                        setattr(self, setting, True)
+
+            # Validate numeric wireless settings
+            if self.wireless_attack_timeout < 60 or self.wireless_attack_timeout > 3600:
+                logger.warning(f"Wireless attack timeout {self.wireless_attack_timeout} is outside recommended range (60-3600)")
+
+            if self.wireless_scan_interval < 60 or self.wireless_scan_interval > 3600:
+                logger.warning(f"Wireless scan interval {self.wireless_scan_interval} is outside recommended range (60-3600)")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error during wireless configuration validation: {e}")
+            return False
