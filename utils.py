@@ -285,6 +285,45 @@ class WebUtils:
             handler.end_headers()
             handler.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
 
+    def serve_achievements_data(self, handler):
+        """Serve achievements data for the web interface."""
+        try:
+            # Import achievement manager
+            from achievement_manager import AchievementManager
+
+            # Create achievement manager instance
+            achievement_manager = AchievementManager(self.shared_data)
+
+            # Get all achievements with progress
+            achievements = achievement_manager.get_all_achievements()
+
+            # Get statistics
+            unlocked_count = achievement_manager.get_unlocked_count()
+            total_count = achievement_manager.get_total_count()
+            completion_percentage = achievement_manager.get_completion_percentage()
+            total_rewards = achievement_manager.get_total_rewards_earned()
+
+            # Prepare response data
+            response_data = {
+                'achievements': achievements,
+                'unlocked_count': unlocked_count,
+                'total_count': total_count,
+                'completion_percentage': round(completion_percentage, 1),
+                'total_rewards': total_rewards
+            }
+
+            handler.send_response(200)
+            handler.send_header("Content-type", "application/json")
+            handler.end_headers()
+            handler.wfile.write(json.dumps(response_data).encode('utf-8'))
+
+        except Exception as e:
+            self.logger.error(f"Error serving achievements data: {e}")
+            handler.send_response(500)
+            handler.send_header("Content-type", "application/json")
+            handler.end_headers()
+            handler.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+
     def generate_html_for_csv_files(self, directory):
         html = '<div class="credentials-container">\n'
         for filename in os.listdir(directory):
@@ -399,7 +438,7 @@ class WebUtils:
         except FileNotFoundError:
             handler.send_response(404)
             handler.end_headers()
-    
+
     def serve_apple_touch_icon(self, handler):
         handler.send_response(200)
         handler.send_header("Content-type", "image/png")

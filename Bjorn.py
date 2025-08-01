@@ -27,6 +27,7 @@ from display import Display, handle_exit_display
 from comment import Commentaireia
 from webapp import web_thread, handle_exit_web
 from orchestrator import Orchestrator
+from achievement_manager import AchievementManager
 from logger import Logger
 
 logger = Logger(name="Bjorn.py", level=logging.DEBUG)
@@ -51,6 +52,7 @@ class Bjorn:
         self.orchestrator: Optional[Orchestrator] = None
         self.wifi_connected = False
         self.health_monitor = HealthMonitor(shared_data)
+        self.achievement_manager = AchievementManager(shared_data)
 
         # Validate configuration on startup
         if not self.shared_data.validate_config():
@@ -78,6 +80,9 @@ class Bjorn:
 
                     # Perform health check
                     self.health_monitor.check_system_health()
+
+                    # Check achievements
+                    self.achievement_manager.check_achievements()
 
                     time.sleep(10)  # Main loop idle waiting
 

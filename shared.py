@@ -313,6 +313,7 @@ class SharedData:
         self.networkkbnbr = 0
         self.attacksnbr = 0
         self.wirelessnbr = 0
+        self.achievementsnbr = 0
         self.show_first_image = True
 
     def delete_webconsolelog(self):
@@ -508,6 +509,7 @@ class SharedData:
             self.attack = self.load_image(os.path.join(self.staticpicdir, 'attack.bmp'))
             self.attacks = self.load_image(os.path.join(self.staticpicdir, 'attacks.bmp'))
             self.gold = self.load_image(os.path.join(self.staticpicdir, 'gold.bmp'))
+            self.achievements = self.load_image(os.path.join(self.staticpicdir, 'gold.bmp'))  # Use gold icon for achievements
             self.networkkb = self.load_image(os.path.join(self.staticpicdir, 'networkkb.bmp'))
             self.zombie = self.load_image(os.path.join(self.staticpicdir, 'zombie.bmp'))
             self.data = self.load_image(os.path.join(self.staticpicdir, 'data.bmp'))
@@ -687,6 +689,15 @@ class SharedData:
         """Update the stats based on formulas."""
         self.coinnbr = int((self.networkkbnbr * 5 + self.crednbr * 5 + self.datanbr * 5 + self.zombiesnbr * 10+self.attacksnbr * 5+ self.vulnnbr * 2 + self.wirelessnbr * 8))
         self.levelnbr = int((self.networkkbnbr * 0.1 + self.crednbr * 0.2 + self.datanbr * 0.1 + self.zombiesnbr * 0.5+ self.attacksnbr+ self.vulnnbr * 0.01 + self.wirelessnbr * 0.3))
+
+        # Update achievements count from achievement manager
+        try:
+            from achievement_manager import AchievementManager
+            achievement_manager = AchievementManager(self)
+            self.achievementsnbr = achievement_manager.get_unlocked_count()
+        except Exception as e:
+            logger.error(f"Error updating achievements count: {e}")
+            self.achievementsnbr = 0
 
 
     def print(self, message):

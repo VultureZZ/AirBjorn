@@ -269,6 +269,14 @@ class Orchestrator:
                 if result == 'success':
                     self.update_metrics('successful_attacks')
                     logger.info(f"Action {action_key} on {ip} completed successfully in {execution_time:.2f}s")
+
+                    # Check achievements after successful action
+                    try:
+                        from achievement_manager import AchievementManager
+                        achievement_manager = AchievementManager(self.shared_data)
+                        achievement_manager.check_achievements()
+                    except Exception as e:
+                        logger.error(f"Error checking achievements: {e}")
                 else:
                     self.update_metrics('failed_attacks')
                     logger.info(f"Action {action_key} on {ip} failed in {execution_time:.2f}s")

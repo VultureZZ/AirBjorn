@@ -1,0 +1,187 @@
+{
+    "achievements": {
+        "FIRST_BLOOD": {
+            "name": "First Blood",
+            "description": "First successful attack",
+            "requirement": {"type": "first_attack", "value": 1},
+            "reward": 50,
+            "icon": "first_blood",
+            "category": "combat"
+        },
+        "WIRELESS_WARRIOR": {
+            "name": "Wireless Warrior",
+            "description": "Crack 5 wireless networks",
+            "requirement": {"type": "wireless_cracked", "value": 5},
+            "reward": 200,
+            "icon": "wireless_warrior",
+            "category": "wireless"
+        },
+        "ZOMBIE_MASTER": {
+            "name": "Zombie Master",
+            "description": "Compromise 10 systems",
+            "requirement": {"type": "zombies", "value": 10},
+            "reward": 500,
+            "icon": "zombie_master",
+            "category": "exploitation"
+        },
+        "VULNERABILITY_HUNTER": {
+            "name": "Vulnerability Hunter",
+            "description": "Find 50 vulnerabilities",
+            "requirement": {"type": "vulnerabilities", "value": 50},
+            "reward": 300,
+            "icon": "vuln_hunter",
+            "category": "reconnaissance"
+        },
+        "NETWORK_DOMINATOR": {
+            "name": "Network Dominator",
+            "description": "Control 80% of network",
+            "requirement": {"type": "network_control", "value": 0.8},
+            "reward": 1000,
+            "icon": "network_dominator",
+            "category": "control"
+        },
+        "STEALTH_OPERATOR": {
+            "name": "Stealth Operator",
+            "description": "Complete 10 attacks without detection",
+            "requirement": {"type": "stealth_attacks", "value": 10},
+            "reward": 400,
+            "icon": "stealth_operator",
+            "category": "stealth"
+        },
+        "SPEED_DEMON": {
+            "name": "Speed Demon",
+            "description": "Complete 5 attacks in under 10 minutes",
+            "requirement": {"type": "speed_attacks", "value": 5},
+            "reward": 250,
+            "icon": "speed_demon",
+            "category": "speed"
+        },
+        "WIFI_WIZARD": {
+            "name": "WiFi Wizard",
+            "description": "Crack networks using all 3 methods (WPS, WPA, PMKID)",
+            "requirement": {"type": "attack_methods", "value": 3},
+            "reward": 600,
+            "icon": "wifi_wizard",
+            "category": "wireless"
+        },
+        "CREDENTIAL_COLLECTOR": {
+            "name": "Credential Collector",
+            "description": "Crack 25 credentials",
+            "requirement": {"type": "credentials", "value": 25},
+            "reward": 350,
+            "icon": "credential_collector",
+            "category": "exploitation"
+        },
+        "DATA_THIEF": {
+            "name": "Data Thief",
+            "description": "Steal 1MB of data",
+            "requirement": {"type": "data_stolen", "value": 1048576},
+            "reward": 450,
+            "icon": "data_thief",
+            "category": "exfiltration"
+        },
+        "PORT_SCANNER": {
+            "name": "Port Scanner",
+            "description": "Discover 100 open ports",
+            "requirement": {"type": "ports", "value": 100},
+            "reward": 150,
+            "icon": "port_scanner",
+            "category": "reconnaissance"
+        },
+        "TARGET_FINDER": {
+            "name": "Target Finder",
+            "description": "Discover 50 targets",
+            "requirement": {"type": "targets", "value": 50},
+            "reward": 200,
+            "icon": "target_finder",
+            "category": "reconnaissance"
+        },
+        "ATTACK_MASTER": {
+            "name": "Attack Master",
+            "description": "Complete 100 attacks",
+            "requirement": {"type": "attacks", "value": 100},
+            "reward": 800,
+            "icon": "attack_master",
+            "category": "combat"
+        },
+        "WIRELESS_NOVICE": {
+            "name": "Wireless Novice",
+            "description": "Crack your first wireless network",
+            "requirement": {"type": "wireless_cracked", "value": 1},
+            "reward": 100,
+            "icon": "wireless_novice",
+            "category": "wireless"
+        },
+        "VULNERABILITY_NOVICE": {
+            "name": "Vulnerability Novice",
+            "description": "Find your first vulnerability",
+            "requirement": {"type": "vulnerabilities", "value": 1},
+            "reward": 50,
+            "icon": "vuln_novice",
+            "category": "reconnaissance"
+        },
+        "ZOMBIE_NOVICE": {
+            "name": "Zombie Novice",
+            "description": "Compromise your first system",
+            "requirement": {"type": "zombies", "value": 1},
+            "reward": 100,
+            "icon": "zombie_novice",
+            "category": "exploitation"
+        },
+        "CREDENTIAL_NOVICE": {
+            "name": "Credential Novice",
+            "description": "Crack your first credential",
+            "requirement": {"type": "credentials", "value": 1},
+            "reward": 75,
+            "icon": "credential_novice",
+            "category": "exploitation"
+        },
+        "DATA_NOVICE": {
+            "name": "Data Novice",
+            "description": "Steal your first data",
+            "requirement": {"type": "data_stolen", "value": 1},
+            "reward": 75,
+            "icon": "data_novice",
+            "category": "exfiltration"
+        },
+        "PORT_NOVICE": {
+            "name": "Port Novice",
+            "description": "Discover your first open port",
+            "requirement": {"type": "ports", "value": 1},
+            "reward": 25,
+            "icon": "port_novice",
+            "category": "reconnaissance"
+        },
+        "TARGET_NOVICE": {
+            "name": "Target Novice",
+            "description": "Discover your first target",
+            "requirement": {"type": "targets", "value": 1},
+            "reward": 50,
+            "icon": "target_novice",
+            "category": "reconnaissance"
+        },
+        "ATTACK_NOVICE": {
+            "name": "Attack Novice",
+            "description": "Complete your first attack",
+            "requirement": {"type": "attacks", "value": 1},
+            "reward": 100,
+            "icon": "attack_novice",
+            "category": "combat"
+        }
+    },
+    "categories": {
+        "combat": "Combat Achievements",
+        "wireless": "Wireless Achievements",
+        "exploitation": "Exploitation Achievements",
+        "reconnaissance": "Reconnaissance Achievements",
+        "control": "Control Achievements",
+        "stealth": "Stealth Achievements",
+        "speed": "Speed Achievements",
+        "exfiltration": "Data Exfiltration Achievements"
+    },
+    "settings": {
+        "notification_duration": 5,
+        "sound_enabled": true,
+        "display_achievements": true
+    }
+}

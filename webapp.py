@@ -256,6 +256,8 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 self.serve_file_gzipped(os.path.join(self.shared_data.webdir, 'loot.html'), 'text/html')
             elif path == '/credentials.html':
                 self.serve_file_gzipped(os.path.join(self.shared_data.webdir, 'credentials.html'), 'text/html')
+            elif path == '/achievements.html':
+                self.serve_file_gzipped(os.path.join(self.shared_data.webdir, 'achievements.html'), 'text/html')
             elif path == '/manual.html':
                 self.serve_file_gzipped(os.path.join(self.shared_data.webdir, 'manual.html'), 'text/html')
             elif path == '/load_config':
@@ -288,6 +290,8 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 self.web_utils.serve_logs(self)
             elif path == '/list_credentials':
                 self.web_utils.serve_credentials_data(self)
+            elif path == '/achievements_data':
+                self.web_utils.serve_achievements_data(self)
             elif path.startswith('/list_files'):
                 self.web_utils.list_files_endpoint(self)
             elif path.startswith('/download_file'):

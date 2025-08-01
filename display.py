@@ -22,10 +22,10 @@ import logging
 import random
 import sys
 from PIL import Image, ImageDraw
-from init_shared import shared_data  
+from init_shared import shared_data
 from comment import Commentaireia
 from logger import Logger
-import subprocess  
+import subprocess
 
 logger = Logger(name="display.py", level=logging.DEBUG)
 
@@ -118,7 +118,7 @@ class Display:
         except Exception as e:
             logger.error(f"Error getting open files: {e}")
             return None
-        
+
     def update_vuln_count(self):
         """Update the vulnerability count on the display."""
         with self.semaphore:
@@ -287,7 +287,7 @@ class Display:
                 draw.rectangle((0, 0, self.shared_data.width, self.shared_data.height), fill=255)
                 draw.text((int(37 * self.scale_factor_x), int(5 * self.scale_factor_y)), "BJORN", font=self.shared_data.font_viking, fill=0)
                 draw.text((int(110 * self.scale_factor_x), int(170 * self.scale_factor_y)), self.manual_mode_txt, font=self.shared_data.font_arial14, fill=0)
-                
+
                 if self.shared_data.wifi_connected:
                     image.paste(self.shared_data.wifi, (int(3 * self.scale_factor_x), int(3 * self.scale_factor_y)))
                 # # # if self.shared_data.bluetooth_active:
@@ -308,6 +308,7 @@ class Display:
                     (self.shared_data.networkkb, (int(102 * self.scale_factor_x), int(190 * self.scale_factor_y)), (int(102 * self.scale_factor_x), int(208 * self.scale_factor_y)), str(self.shared_data.networkkbnbr)),
                     (self.shared_data.data, (int(86 * self.scale_factor_x), int(41 * self.scale_factor_y)), (int(106 * self.scale_factor_x), int(41 * self.scale_factor_y)), str(self.shared_data.datanbr)),
                     (self.shared_data.attacks, (int(100 * self.scale_factor_x), int(218 * self.scale_factor_y)), (int(102 * self.scale_factor_x), int(237 * self.scale_factor_y)), str(self.shared_data.attacksnbr)),
+                    (self.shared_data.achievements, (int(80 * self.scale_factor_x), int(218 * self.scale_factor_y)), (int(82 * self.scale_factor_x), int(237 * self.scale_factor_y)), str(self.shared_data.achievementsnbr)),
                 ]
 
                 for img, img_pos, text_pos, text in stats:
@@ -352,7 +353,7 @@ class Display:
                     image.save(img_file)
                     img_file.flush()
                     os.fsync(img_file.fileno())
-                
+
                 time.sleep(self.shared_data.screen_delay)
             except Exception as e:
                 logger.error(f"An error occurred: {e}")
@@ -382,7 +383,7 @@ if __name__ == "__main__":
         display_thread = threading.Thread(target=main_loop.run)
         display_thread.start()
         logger.info("Main loop started.")
-        
+
         signal.signal(signal.SIGINT, lambda signum, frame: handle_exit_display(signum, frame, display_thread))
         signal.signal(signal.SIGTERM, lambda signum, frame: handle_exit_display(signum, frame, display_thread))
     except Exception as e:

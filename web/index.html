@@ -34,6 +34,9 @@
         <button type="button" onclick="window.location.href='/loot.html'" title="Loot">
             <img src="/web/images/loot_icon.png" alt="Icon_loot" style="height: 50px;">
         </button>
+        <button type="button" onclick="window.location.href='/achievements.html'" title="Achievements">
+            <img src="/web/images/achievements_icon.png" alt="Icon_achievements" style="height: 50px;">
+        </button>
     </div>
     <div class="console-toolbar">
         <button type="button" class="toolbar-button" onclick="adjustFontSize(-1)" title="-">
@@ -71,24 +74,24 @@
             adjustLogConsoleHeight();
             loadManualModeOptions();
         });
-    
+
         function loadManualModeOptions() {
             fetch('/netkb_data_json')
                 .then(response => response.json())
                 .then(data => {
                     const ipDropdown = document.getElementById('ip-dropdown');
                     const actionDropdown = document.getElementById('action-dropdown');
-    
+
                     ipDropdown.innerHTML = data.ips.map(ip => `<option value="${ip}">${ip}</option>`).join('');
                     actionDropdown.innerHTML = data.actions.map(action => `<option value="${action}">${action}</option>`).join('');
                 })
                 .catch(error => console.error('Error loading netkb data:', error));
         }
-    
+
         function updatePortsAndActions() {
             const ipDropdown = document.getElementById('ip-dropdown');
             const selectedIp = ipDropdown.value;
-    
+
             fetch('/netkb_data_json')
                 .then(response => response.json())
                 .then(data => {
@@ -97,12 +100,12 @@
                 })
                 .catch(error => console.error('Error updating ports:', error));
         }
-    
+
         function executeManualAttack() {
             const ip = document.getElementById('ip-dropdown').value;
             const port = document.getElementById('port-dropdown').value;
             const action = document.getElementById('action-dropdown').value;
-    
+
             fetch('/execute_manual_attack', {
                 method: 'POST',
                 headers: {
@@ -121,7 +124,7 @@
             })
             .catch(error => console.error('Error executing manual attack:', error));
         }
-    
+
         function loadRecentLogs() {
             fetch('/recent_logs')
                 .then(response => response.text())
@@ -131,7 +134,7 @@
                 })
                 .catch(error => console.error('Error loading recent logs:', error));
         }
-    
+
         function toggleManualMode() {
             const panel = document.getElementById('manual-mode-panel');
             const icon = document.getElementById('manual-mode-icon');
@@ -148,7 +151,7 @@
             }
             adjustLogConsoleHeight();
         }
-    
+
         function adjustLogConsoleHeight() {
             const panel = document.getElementById('manual-mode-panel');
             const logConsole = document.getElementById('log-console');
@@ -158,12 +161,12 @@
                 logConsole.style.height = 'calc(100vh - 100px)';
             }
         }
-    
+
         function stop_orchestrator() {
             fetch('/stop_orchestrator', { method: 'POST' })
                 .catch(error => console.error('Failed to stop orchestrator:', error));
         }
-    
+
         function start_orchestrator() {
             fetch('/start_orchestrator', { method: 'POST' })
                 .catch(error => console.error('Failed to start orchestrator:', error));
